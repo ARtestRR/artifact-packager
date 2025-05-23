@@ -1,6 +1,6 @@
 name: CI
 
-on: 
+on:
   push:
     branches: [ main ]
   pull_request:
@@ -38,13 +38,13 @@ jobs:
       - name: Install dependencies
         shell: pwsh
         run: |
-          if ($env:RUNNER_OS -eq "Linux") {
+          if ($env:RUNNER_OS -eq 'Linux') {
             sudo apt-get update
             sudo apt-get install -y p7zip-full
-            7z --version
+            7z    # проверка наличия 7-Zip
           } else {
             choco install 7zip.install --version=23.1 --yes --force
-            7z | Select-String "Version"
+            7z    # проверка наличия 7-Zip
           }
 
       - name: Install Pester
@@ -56,11 +56,11 @@ jobs:
       - name: Build and test
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
+          $ErrorActionPreference = 'Stop'
 
-          ./Create-Artifacts.ps1 -RootDir ./dev_build
+          ./Create-Artifacts.ps1 -RootDir './dev_build'
 
-          $testResults = Join-Path $env:GITHUB_WORKSPACE "test-results.xml"
-          Invoke-Pester ./tests/Artifacts.Tests.ps1 -OutputFile $testResults -OutputFormat NUnitXml
+          $testResults = Join-Path $env:GITHUB_WORKSPACE 'test-results.xml'
+          Invoke-Pester './tests/Artifacts.Tests.ps1' -OutputFile $testResults -OutputFormat NUnitXml
 
-          Write-Warning "Pester Tests Completed"
+          Write-Warning 'Pester Tests Completed'
