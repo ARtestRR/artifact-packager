@@ -15,7 +15,12 @@ $ErrorActionPreference = 'Stop'
 
 # Вычисляем абсолютный путь к RootDir относительно местоположения скрипта
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$RootDirFull = Resolve-Path (Join-Path $ScriptDir $RootDir) -ErrorAction Stop
+$RootDirFull = Join-Path $ScriptDir $RootDir
+
+# Проверяем существование директории
+if (-not (Test-Path $RootDirFull -PathType Container)) {
+    throw "Директория '$RootDirFull' не существует!"
+}
 
 # Ищем команду 7z или 7za в PATH
 $sevenZipCmd = (Get-Command '7z'  -ErrorAction SilentlyContinue)?.Source `

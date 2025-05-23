@@ -1,5 +1,5 @@
 BeforeAll {
-    # вычисляем корень репозитория
+    # Вычисляем корень репозитория
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $repoRoot  = Resolve-Path (Join-Path $scriptDir '..') -ErrorAction Stop
 
@@ -7,7 +7,7 @@ BeforeAll {
     Remove-Item $testRoot -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -Path $testRoot -ItemType Directory | Out-Null
 
-    # копируем dev_build из корня репозитория
+    # Копируем dev_build из корня репозитория
     Copy-Item -Path (Join-Path $repoRoot 'dev_build') -Destination $testRoot -Recurse
     Set-Location $testRoot
 }
@@ -65,5 +65,13 @@ Describe 'Проверка артефактов' {
                 $actualHash | Should -Be $expectedHash
             }
         }
+    }
+
+    It 'Хеши разных архивов уникальны' {
+        $allHashes = Get-ChildItem -Path './dev_build' -Filter '*_artifacts.7z' | ForEach-Object {
+            (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+        }
+        $uniqueHashes = $allHashes | Sort-Object -Unique
+        $uniqueHashes.Count | Should -Be $allHashes.Count
     }
 }

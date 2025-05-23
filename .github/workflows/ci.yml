@@ -15,41 +15,41 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup PowerShell on Linux
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https software-properties-common p7zip-full
-          wget -q "https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb"
-          sudo dpkg -i packages-microsoft-prod.deb
-          sudo apt-get update
-          sudo apt-get install -y powershell
-        shell: bash
+      - name: Setup PowerShell
+        uses: actions/setup-powershell@v3
+        with:
+          version: "7.4"
 
-      - name: Setup PowerShell on Windows
-        if: runner.os == 'Windows'
-        run: choco install powershell --version=7.4.0 -y --force
-        shell: powershell
+      - name: Install 7-Zip
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y p7zip-full
+          else
+            choco install 7zip.install --version=23.1 --yes
+          fi
 
       - name: Install Pester
         shell: pwsh
         run: |
-          Install-Module -Name Pester -Force -Scope CurrentUser -AllowClobber -SkipPublisherCheck
+          Install-Module -Name Pester -Force -Scope CurrentUser
+          Import-Module Pester -PassThru | Select-Object Version
 
       - name: Build and test
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          
+          # Проверяем существование dev_build
+          if (-not (Test-Path "./dev_build")) {
+              throw "Directory dev_build not found!"
+          }
 
-          # упаковываем
-          .\Create-Artifacts.ps1 -RootDir './dev_build'
+          # Запускаем скрипт
+          .\Create-Artifacts.ps1 -RootDir (Resolve-Path "./dev_build")
 
-          # запускаем тесты
-          $testResults = Join-Path $env:GITHUB_WORKSPACE 'test-results.xml'
-          Invoke-Pester './tests/Artifacts.Tests.ps1' `
-            -OutputFile $testResults -OutputFormat NUnitXml
-
-          Write-Host '✅ Все тесты прошли успешно'
+          # Запускаем тесты
+          $testResults = Join-Path $env:GITHUB_WORKSPACE "test-results.xml"
+          Invoke-Pester ./tests/Artifacts.Tests.ps1 -OutputFile $testResults -OutputFormat NUnitXml
