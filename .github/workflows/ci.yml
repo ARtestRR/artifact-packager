@@ -15,41 +15,52 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup PowerShell
-        uses: actions/setup-powershell@v4
-        with:
-          version: "7.4"
-
-      - name: Install 7-Zip
+      - name: Install PowerShell 7.4 on Linux
+        if: runner.os == 'Linux'
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update && sudo apt-get install -y p7zip-full
-          else
-            choco install 7zip.install --version=23.1 --yes
-          fi
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https software-properties-common
+          wget -q "https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb"
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
+          pwsh -v
+
+      - name: Install PowerShell 7.4 on Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco install powershell --version=7.4.0 -y --force
+          pwsh -v
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_OS -eq 'Linux') {
+            sudo apt-get update
+            sudo apt-get install -y p7zip-full
+            7z    # проверка наличия 7-Zip
+          } else {
+            choco install 7zip.install --version=23.1 --yes --force
+            7z    # проверка наличия 7-Zip
+          }
 
       - name: Install Pester
         shell: pwsh
         run: |
-          Install-Module -Name Pester -Force -Scope CurrentUser
-          Import-Module Pester -PassThru | Select-Object Version
+          Install-Module -Name Pester -Force -Scope CurrentUser -AllowClobber -SkipPublisherCheck
+          Import-Module Pester -PassThru | Select-Object Name, Version
 
       - name: Build and test
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          
-          # Проверяем существование dev_build
-          if (-not (Test-Path "./dev_build")) {
-              throw "Directory dev_build not found!"
-          }
 
-          # Запускаем скрипт
-          .\Create-Artifacts.ps1 -RootDir (Resolve-Path "./dev_build")
+          ./Create-Artifacts.ps1 -RootDir './dev_build'
 
-          # Запускаем тесты
-          $testResults = Join-Path $env:GITHUB_WORKSPACE "test-results.xml"
-          Invoke-Pester ./tests/Artifacts.Tests.ps1 -OutputFile $testResults -OutputFormat NUnitXml
+          $testResults = Join-Path $env:GITHUB_WORKSPACE 'test-results.xml'
+          Invoke-Pester './tests/Artifacts.Tests.ps1' -OutputFile $testResults -OutputFormat NUnitXml
+
+          Write-Warning 'Pester Tests Completed'
