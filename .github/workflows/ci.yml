@@ -1,6 +1,10 @@
 name: CI
 
-on: [push, pull_request]
+on: 
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   test:
@@ -8,30 +12,42 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-      fail-fast: false 
+      fail-fast: false
 
     steps:
-      - uses: actions/checkout@v3
-      
+      - name: Checkout repository
+        uses: actions/checkout@v4 
+
       - name: Setup PowerShell
-        uses: actions/setup-powershell@v3  
+        uses: actions/setup-powershell@v4  
         with:
-          version: '7.4.0'
-      
+          version: "7.4"  
+
       - name: Install dependencies
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update && sudo apt-get install -y p7zip-full
+            sudo apt-get update
+            sudo apt-get install -y p7zip-full
+            7z --version  # Проверка установки
           else
-            choco install -y 7zip.install  # Исправлено: 7zip → 7zip.install
+            choco install 7zip.install --version=23.1 --yes --force
+            7z | Select-String "Version"  # Проверка установки
           fi
-      
+
       - name: Install Pester
         shell: pwsh
-        run: Install-Module -Name Pester -Force -Scope CurrentUser
-      
+        run: |
+          Install-Module -Name Pester -Force -Scope CurrentUser -AllowClobber -SkipPublisherCheck
+          Import-Module Pester -PassThru | Select-Object Name, Version
+
       - name: Build and test
         shell: pwsh
         run: |
-          ./Create-Artifacts.ps1
-          Invoke-Pester ./tests/Artifacts.Tests.ps1
+          $ErrorActionPreference = "Stop"
+          
+          ./Create-Artifacts.ps1 -RootDir ./dev_build
+          
+          $testResults = Join-Path $env:GITHUB_WORKSPACE "test-results.xml"
+          Invoke-Pester ./tests/Artifacts.Tests.ps1 -OutputFile $testResults -OutputFormat NUnitXml
+          
+          echo "##[warning] Pester Tests Completed"
