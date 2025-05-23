@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup PowerShell
-        uses: actions/setup-powershell@v4  # ✅ Версия исправлена
+        uses: actions/setup-powershell@v4
         with:
           version: "7.4"
 
