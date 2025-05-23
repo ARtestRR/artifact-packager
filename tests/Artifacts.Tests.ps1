@@ -1,8 +1,14 @@
 BeforeAll {
-    $testRoot = Join-Path "/tmp" "pester_$(Get-Random)"
+    # вычисляем корень репозитория
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $repoRoot  = Resolve-Path (Join-Path $scriptDir '..') -ErrorAction Stop
+
+    $testRoot = Join-Path $env:TEMP "pester_$(Get-Random)"
     Remove-Item $testRoot -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -Path $testRoot -ItemType Directory | Out-Null
-    Copy-Item -Path "/app/dev_build" -Destination $testRoot -Recurse
+
+    # копируем dev_build из корня репозитория
+    Copy-Item -Path (Join-Path $repoRoot 'dev_build') -Destination $testRoot -Recurse
     Set-Location $testRoot
 }
 
@@ -16,7 +22,7 @@ Describe 'Проверка артефактов' {
 
     It 'Архив содержит 3 файла хешей' {
         Get-ChildItem -Path './dev_build' -Filter '*_artifacts.7z' | ForEach-Object {
-            $tempDir = Join-Path "/tmp" "extract_$(Get-Random)"
+            $tempDir = Join-Path $env:TEMP "extract_$(Get-Random)"
             New-Item -Path $tempDir -ItemType Directory | Out-Null
             try {
                 & /usr/bin/7z x "$($_.FullName)" "-o$tempDir" -y | Out-Null
@@ -30,7 +36,7 @@ Describe 'Проверка артефактов' {
 
     It 'Внутренние хеши совпадают' {
         Get-ChildItem -Path './dev_build' -Filter '*_artifacts.7z' | ForEach-Object {
-            $tempDir = Join-Path "/tmp" "extract_$(Get-Random)"
+            $tempDir = Join-Path $env:TEMP "extract_$(Get-Random)"
             New-Item -Path $tempDir -ItemType Directory | Out-Null
             try {
                 & /usr/bin/7z x "$($_.FullName)" "-o$tempDir" -y | Out-Null
@@ -38,7 +44,8 @@ Describe 'Проверка артефактов' {
                     Get-Content $sumFile | ForEach-Object {
                         $hash, $relPath = $_ -split '\s+', 2
                         $fullPath = Join-Path $tempDir $relPath
-                        (Get-FileHash $fullPath -Algorithm ($sumFile.BaseName -replace 'sums$', '')).Hash | Should -Be $hash
+                        (Get-FileHash $fullPath -Algorithm ($sumFile.BaseName -replace 'sums$', '')).Hash |
+                            Should -Be $hash
                     }
                 }
             }

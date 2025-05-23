@@ -7,41 +7,41 @@
 #>
 
 param(
-    [string]$RootDir = './dev_build'
+    [string] $RootDir = './dev_build'
 )
 
 # Прекращаем выполнение при любой ошибке
 $ErrorActionPreference = 'Stop'
 
+# Вычисляем абсолютный путь к RootDir относительно местоположения скрипта
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$RootDirFull = Resolve-Path (Join-Path $ScriptDir $RootDir) -ErrorAction Stop
+
 # Ищем команду 7z или 7za в PATH
 $sevenZipCmd = (Get-Command '7z'  -ErrorAction SilentlyContinue)?.Source `
              ?? (Get-Command '7za' -ErrorAction SilentlyContinue)?.Source
-
 if (-not $sevenZipCmd) {
     throw '7-Zip не найден. Установите p7zip-full (Linux) или 7-Zip (Windows)'
 }
-
-# Это путь к бинарнику 7z
 $7zCommand = $sevenZipCmd
 
 # Алгоритмы хеширования
 $hashAlgos = @('MD5','SHA1','SHA256')
 
-# Обходим все подпроекты в $RootDir
-Get-ChildItem -Path $RootDir -Directory | ForEach-Object {
+# Обходим все подпроекты в $RootDirFull
+Get-ChildItem -Path $RootDirFull -Directory | ForEach-Object {
     $proj     = $_
     $name     = $proj.Name
     $archive  = Join-Path $proj.FullName "${name}_artifacts.7z"
     $tempDir  = Join-Path $env:TEMP     "${name}_temp"
 
     try {
-        # Готовим временную папку
         New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
 
-        # Копируем все файлы из подпроекта
+        # Копируем всё из подпроекта
         Copy-Item -Path (Join-Path $proj.FullName '*') -Destination $tempDir -Recurse
 
-        # Генерируем внутренние хеши каждого файла
+        # Внутренние хеши
         foreach ($algo in $hashAlgos) {
             $sumFile = Join-Path $tempDir ("{0}sums.txt" -f $algo.ToLower())
             Get-ChildItem -Path $tempDir -Recurse -File | ForEach-Object {
@@ -51,13 +51,13 @@ Get-ChildItem -Path $RootDir -Directory | ForEach-Object {
             }
         }
 
-        # Архивируем всё в один 7z-файл
+        # Собираем 7z
         & $7zCommand a -t7z $archive (Join-Path $tempDir '*') -mx9 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "Ошибка архивации подпроекта '$name'"
         }
 
-        # Генерируем внешние хеш-файлы для самого архива
+        # Внешние хеши
         foreach ($algo in $hashAlgos) {
             $hash     = (Get-FileHash $archive -Algorithm $algo).Hash
             $hashFile = "$archive.$($algo.ToLower())"
@@ -65,7 +65,6 @@ Get-ChildItem -Path $RootDir -Directory | ForEach-Object {
         }
     }
     finally {
-        # Убираем временную папку
         Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
