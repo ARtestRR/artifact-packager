@@ -1,5 +1,3 @@
-dev_build/*_artifacts.7z*
-
 .vscode/
 *.log
 .DS_Store
