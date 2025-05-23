@@ -8,12 +8,13 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-    
+      fail-fast: false 
+
     steps:
       - uses: actions/checkout@v3
       
       - name: Setup PowerShell
-        uses: actions/setup-powershell@v2
+        uses: actions/setup-powershell@v3  
         with:
           version: '7.4.0'
       
@@ -22,7 +23,7 @@ jobs:
           if [ "$RUNNER_OS" == "Linux" ]; then
             sudo apt-get update && sudo apt-get install -y p7zip-full
           else
-            choco install -y 7zip
+            choco install -y 7zip.install  # Исправлено: 7zip → 7zip.install
           fi
       
       - name: Install Pester
