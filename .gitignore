@@ -1,0 +1,7 @@
+# Артефакты
+dev_build/*_artifacts.7z*
+
+# Системные файлы
+.vscode/
+*.log
+.DS_Store
