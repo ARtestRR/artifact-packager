@@ -16,23 +16,36 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 
+        uses: actions/checkout@v4
 
-      - name: Setup PowerShell
-        uses: actions/setup-powershell@v4  
-        with:
-          version: "7.4"  
+      - name: Install PowerShell 7.4 on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https software-properties-common
+          wget -q "https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb"
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
+          pwsh -v
+
+      - name: Install PowerShell 7.4 on Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco install powershell --version=7.4.0 -y --force
+          pwsh -v
 
       - name: Install dependencies
+        shell: pwsh
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
+          if ($env:RUNNER_OS -eq "Linux") {
             sudo apt-get update
             sudo apt-get install -y p7zip-full
-            7z --version  # Проверка установки
-          else
+            7z --version
+          } else {
             choco install 7zip.install --version=23.1 --yes --force
-            7z | Select-String "Version"  # Проверка установки
-          fi
+            7z | Select-String "Version"
+          }
 
       - name: Install Pester
         shell: pwsh
@@ -44,10 +57,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          
+
           ./Create-Artifacts.ps1 -RootDir ./dev_build
-          
+
           $testResults = Join-Path $env:GITHUB_WORKSPACE "test-results.xml"
           Invoke-Pester ./tests/Artifacts.Tests.ps1 -OutputFile $testResults -OutputFormat NUnitXml
-          
-          echo "##[warning] Pester Tests Completed"
+
+          Write-Warning "Pester Tests Completed"
