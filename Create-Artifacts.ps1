@@ -8,10 +8,11 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$RootDirFull = Join-Path $ScriptDir $RootDir
+$RootDirFull = Join-Path $ScriptDir $RootDir -Replace '\\', '/'
 
 try {
-    $RootDirFull = Resolve-Path -Path $RootDirFull -ErrorAction Stop
+    $RootDirFull = Resolve-Path -Path $RootDirFull -ErrorAction Stop | Select-Object -ExpandProperty Path
+    $RootDirFull = $RootDirFull -Replace '\\', '/'
 } catch {
     throw "Не удалось разрешить путь: '$RootDirFull'. Причина: $_"
 }
@@ -29,21 +30,31 @@ if (-not $sevenZipCmd) {
 
 $hashAlgos = @('MD5', 'SHA1', 'SHA256')
 
-Get-ChildItem -Path $RootDirFull -Directory | ForEach-Object {
+# Явное преобразование путей для Linux
+$projects = Get-ChildItem -LiteralPath $RootDirFull -Directory | 
+            Where-Object { $_.Name -match '^(grpedit|modservice|rsysconf|scada)$' }
+
+if (-not $projects) {
+    throw "Не найдены проекты в $RootDirFull"
+}
+
+$projects | ForEach-Object {
     $proj = $_
     $name = $proj.Name
-    $archive = Join-Path $proj.FullName "${name}_artifacts.7z"
-    $tempDir = Join-Path $env:TEMP "${name}_temp_$(Get-Random)"
+    $archive = Join-Path $proj.FullName "${name}_artifacts.7z" -Replace '\\', '/'
+    $tempDir = Join-Path $env:TEMP "${name}_temp_$(Get-Random)" -Replace '\\', '/'
 
     try {
         New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
-        Copy-Item -Path (Join-Path $proj.FullName '*') -Destination $tempDir -Recurse -Force
+        
+        # Копирование только нужных файлов (исключая .gitkeep)
+        Get-ChildItem -Path $proj.FullName -Exclude '.gitkeep' | 
+        Copy-Item -Destination $tempDir -Recurse -Force
 
         foreach ($algo in $hashAlgos) {
             $sumFile = Join-Path $tempDir ("{0}sums.txt" -f $algo.ToLower())
-            Get-ChildItem -Path $tempDir -Recurse -File | Where-Object {
-                $_.FullName -ne $sumFile
-            } | ForEach-Object {
+            Get-ChildItem -Path $tempDir -Recurse -File -Exclude '*sums.txt' | 
+            ForEach-Object {
                 $hash = (Get-FileHash $_.FullName -Algorithm $algo).Hash
                 $relPath = $_.FullName.Substring($tempDir.Length + 1).Replace('\', '/')
                 "$hash  $relPath" | Add-Content -Path $sumFile -Encoding utf8
