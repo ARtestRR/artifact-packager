@@ -68,4 +68,4 @@ jobs:
           $config.TestResult.OutputPath   = 'test-results.xml'
           $config.TestResult.OutputFormat = 'NUnitXml'
 
-          Invoke-Pester -Configuration $config -Verbose
+          Invoke-Pester -Configuration $config -PassThru -Verbose

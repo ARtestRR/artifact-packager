@@ -1,5 +1,5 @@
 BeforeAll {
-    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $scriptDir = $PSScriptRoot
     $repoRoot  = Resolve-Path (Join-Path $scriptDir '..')
     $testRoot  = Join-Path $env:TEMP "pester_$(Get-Random)"
     
