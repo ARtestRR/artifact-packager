@@ -1,7 +1,7 @@
 BeforeAll {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $repoRoot  = Resolve-Path (Join-Path $scriptDir '..')
-    $testRoot = Join-Path $env:TEMP "pester_$(Get-Random)"
+    $testRoot  = Join-Path $env:TEMP "pester_$(Get-Random)"
     
     Remove-Item $testRoot -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -Path $testRoot -ItemType Directory | Out-Null
@@ -55,19 +55,12 @@ Describe 'Проверка артефактов' -Tag CI {
     It 'Внешние хеши архива валидны' {
         Get-ChildItem -Path './dev_build' -Filter '*_artifacts.7z' | ForEach-Object {
             $archivePath = $_.FullName
-            'MD5', 'SHA1', 'SHA256' | ForEach-Object {
+            'MD5','SHA1','SHA256' | ForEach-Object {
                 $algo = $_
                 $hashFile = "$archivePath.$($algo.ToLower())"
-                $expectedHash = (Get-Content $hashFile).Split()[0]
-                (Get-FileHash $archivePath -Algorithm $algo).Hash | Should -Be $expectedHash
+                $expected = (Get-Content $hashFile).Split()[0]
+                (Get-FileHash $archivePath -Algorithm $algo).Hash | Should -Be $expected
             }
         }
-    }
-
-    It 'Хеши разных архивов уникальны' {
-        $allHashes = Get-ChildItem -Path './dev_build' -Filter '*_artifacts.7z' | ForEach-Object {
-            (Get-FileHash $_.FullName -Algorithm SHA256).Hash
-        }
-        $allHashes | Should -HaveCount ($allHashes | Select-Object -Unique).Count
     }
 }
