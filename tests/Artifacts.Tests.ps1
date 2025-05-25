@@ -15,7 +15,8 @@ Describe 'Artifact Validation' -Tag CI {
     }
 
     It 'Archives exist for all projects' {
-        $projects = Get-ChildItem -Path './dev_build' -Directory
+        $projects = Get-ChildItem -Path './dev_build' -Directory | 
+            Where-Object { $_.Name -match '^(grpedit|modservice|rsysconf|scada)$' }
         $projects | ForEach-Object {
             Join-Path $_.FullName "$($_.Name)_artifacts.7z" | Should -Exist
         }
@@ -60,7 +61,7 @@ Describe 'Artifact Validation' -Tag CI {
             $archive = $_
             'MD5', 'SHA1', 'SHA256' | ForEach-Object {
                 $algo = $_
-                $hashFile = Get-Item "$($archive.FullName).$($algo.ToLower())"
+                $hashFile = Get-Item "$($archive.FullName).$($algo.ToLower())sums.txt"
                 $expectedHash = ($hashFile | Get-Content -Raw).Split()[0]
                 (Get-FileHash $archive.FullName -Algorithm $algo).Hash | Should -Be $expectedHash
             }

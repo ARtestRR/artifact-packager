@@ -7,9 +7,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Инициализация путей
-$ScriptDir = $PSScriptRoot
-$RootDirFull = Join-Path $ScriptDir $RootDir -Resolve
+# Очистка старых артефактов
+$RootDirFull = Join-Path $PSScriptRoot $RootDir -Resolve
+Get-ChildItem -Path $RootDirFull -Filter '*_artifacts.7z*' -Recurse | Remove-Item -Force
 
 # Проверка 7-Zip
 $sevenZipCmd = if ($IsWindows) { '7z.exe' } else { '7z' }
@@ -24,7 +24,6 @@ $excludePatterns = @(
     'tests', 
     '*_artifacts.7z*', 
     '*.md5', 
-    '*.sha*',
     'distr.deb',
     'syms.7z'
 )
@@ -41,12 +40,7 @@ Get-ChildItem -Path $RootDirFull -Directory | Where-Object {
     
     try {
         # Копирование файлов с исключениями
-        if (-not (Test-Path $proj.FullName -PathType Container)) {
-            throw "Project directory $($proj.FullName) not found"
-        }
-
         Get-ChildItem -Path $proj.FullName -Exclude $excludePatterns |
-            Where-Object { $_.PSIsContainer -eq $false } |
             Copy-Item -Destination $tempDir -Recurse -Force
 
         # Создание файлов хешей
@@ -55,7 +49,9 @@ Get-ChildItem -Path $RootDirFull -Directory | Where-Object {
             
             Get-ChildItem -Path $tempDir -Recurse -File -Exclude '*sums.txt' |
                 ForEach-Object {
-                    $relPath = $_.FullName.Replace($tempDir.FullName, '').TrimStart('\').Replace('\', '/')
+                    $relPath = $_.FullName.Replace($tempDir.FullName, '')
+                        .TrimStart([System.IO.Path]::DirectorySeparatorChar)
+                        .Replace([System.IO.Path]::DirectorySeparatorChar, '/')
                     $hash = (Get-FileHash $_.FullName -Algorithm $algo).Hash
                     "${hash}  ${relPath}" | Add-Content -Path $sumFile -Encoding utf8
                 }
@@ -70,7 +66,7 @@ Get-ChildItem -Path $RootDirFull -Directory | Where-Object {
         # Создание внешних хешей
         foreach ($algo in $hashAlgos) {
             $hash = (Get-FileHash -Path $archivePath -Algorithm $algo).Hash
-            $ext = $algo.ToLower()
+            $ext = "$($algo.ToLower())sums.txt"
             "${hash}  $($proj.Name)_artifacts.7z" | Set-Content -Path "${archivePath}.${ext}" -Encoding utf8
         }
     }
