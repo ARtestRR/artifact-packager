@@ -1,7 +1,8 @@
 name: CI
 
 on:
-  push:      { branches: [ main ] }
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -10,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ ubuntu-latest, windows-latest ]
       fail-fast: false
 
     steps:
@@ -59,13 +60,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          # 1. Create the .7z artifacts
           ./Create-Artifacts.ps1 -RootDir './dev_build'
 
-          $config = New-PesterConfiguration
-          $config.Run.Path = (Join-Path $env:GITHUB_WORKSPACE 'tests/Artifacts.Tests.ps1')
-          $config.Output.Verbosity = 'Detailed'
-          $config.TestResult.Enabled = $true
-          $config.TestResult.OutputPath = 'test-results.xml'
-          $config.TestResult.OutputFormat = 'NUnitXml'
-          $config.Run.PassThru = $true 
-          Invoke-Pester -Configuration $config
+          # 2. Run Pester tests directly against the test file,
+          #    so $PSScriptRoot inside the test is correct
+          Invoke-Pester './tests/Artifacts.Tests.ps1' -Output Detailed -PassThru |
+            Out-File -FilePath test-results.xml
