@@ -1,22 +1,19 @@
 BeforeAll {
-    # Вычисляем корень репозитория
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    $repoRoot  = Resolve-Path (Join-Path $scriptDir '..') -ErrorAction Stop
-
+    $repoRoot  = Resolve-Path (Join-Path $scriptDir '..')
     $testRoot = Join-Path $env:TEMP "pester_$(Get-Random)"
+    
     Remove-Item $testRoot -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -Path $testRoot -ItemType Directory | Out-Null
-
-    # Копируем dev_build из корня репозитория
+    
     Copy-Item -Path (Join-Path $repoRoot 'dev_build') -Destination $testRoot -Recurse
     Set-Location $testRoot
 }
 
-Describe 'Проверка артефактов' {
+Describe 'Проверка артефактов' -Tag CI {
     It 'Архивы созданы для всех проектов' {
         Get-ChildItem -Directory './dev_build' | ForEach-Object {
-            $archivePath = Join-Path $_.FullName "$($_.Name)_artifacts.7z"
-            $archivePath | Should -Exist
+            Join-Path $_.FullName "$($_.Name)_artifacts.7z" | Should -Exist
         }
     }
 
@@ -25,8 +22,8 @@ Describe 'Проверка артефактов' {
             $tempDir = Join-Path $env:TEMP "extract_$(Get-Random)"
             New-Item -Path $tempDir -ItemType Directory | Out-Null
             try {
-                & /usr/bin/7z x "$($_.FullName)" "-o$tempDir" -y | Out-Null
-                (Get-ChildItem $tempDir -Recurse -Include '*sums.txt').Count | Should -Be 3
+                & '7z' x $_.FullName "-o$tempDir" -y | Out-Null
+                (Get-ChildItem $tempDir -Filter '*sums.txt').Count | Should -Be 3
             }
             finally {
                 Remove-Item $tempDir -Recurse -Force
@@ -39,13 +36,13 @@ Describe 'Проверка артефактов' {
             $tempDir = Join-Path $env:TEMP "extract_$(Get-Random)"
             New-Item -Path $tempDir -ItemType Directory | Out-Null
             try {
-                & /usr/bin/7z x "$($_.FullName)" "-o$tempDir" -y | Out-Null
-                foreach ($sumFile in (Get-ChildItem $tempDir -Recurse -Include '*sums.txt')) {
+                & '7z' x $_.FullName "-o$tempDir" -y | Out-Null
+                Get-ChildItem $tempDir -Filter '*sums.txt' | ForEach-Object {
+                    $sumFile = $_
                     Get-Content $sumFile | ForEach-Object {
                         $hash, $relPath = $_ -split '\s+', 2
-                        $fullPath = Join-Path $tempDir $relPath
-                        (Get-FileHash $fullPath -Algorithm ($sumFile.BaseName -replace 'sums$', '')).Hash |
-                            Should -Be $hash
+                        $fullPath = Join-Path $tempDir ($relPath -replace '/', [IO.Path]::DirectorySeparatorChar)
+                        (Get-FileHash $fullPath -Algorithm ($sumFile.BaseName -replace 'sums$', '')).Hash | Should -Be $hash
                     }
                 }
             }
@@ -58,11 +55,11 @@ Describe 'Проверка артефактов' {
     It 'Внешние хеши архива валидны' {
         Get-ChildItem -Path './dev_build' -Filter '*_artifacts.7z' | ForEach-Object {
             $archivePath = $_.FullName
-            foreach ($algo in 'MD5', 'SHA1', 'SHA256') {
+            'MD5', 'SHA1', 'SHA256' | ForEach-Object {
+                $algo = $_
                 $hashFile = "$archivePath.$($algo.ToLower())"
                 $expectedHash = (Get-Content $hashFile).Split()[0]
-                $actualHash = (Get-FileHash $archivePath -Algorithm $algo).Hash
-                $actualHash | Should -Be $expectedHash
+                (Get-FileHash $archivePath -Algorithm $algo).Hash | Should -Be $expectedHash
             }
         }
     }
@@ -71,7 +68,6 @@ Describe 'Проверка артефактов' {
         $allHashes = Get-ChildItem -Path './dev_build' -Filter '*_artifacts.7z' | ForEach-Object {
             (Get-FileHash $_.FullName -Algorithm SHA256).Hash
         }
-        $uniqueHashes = $allHashes | Sort-Object -Unique
-        $uniqueHashes.Count | Should -Be $allHashes.Count
+        $allHashes | Should -HaveCount ($allHashes | Select-Object -Unique).Count
     }
 }
