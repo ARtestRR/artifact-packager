@@ -1,19 +1,6 @@
 # tests/Artifacts.Tests.ps1
 
-BeforeAll {
-    # Определяем директорию тестового скрипта
-    $scriptDir = Split-Path -LiteralPath $MyInvocation.MyCommand.Path -Parent
-    $repoRoot  = Resolve-Path (Join-Path $scriptDir '..')
-    $testRoot  = Join-Path $env:TEMP "pester_$(Get-Random)"
-    
-    Remove-Item $testRoot -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item -Path $testRoot -ItemType Directory | Out-Null
-    
-    Copy-Item -Path (Join-Path $repoRoot 'dev_build') -Destination $testRoot -Recurse
-}
-
 Describe 'Artifact Validation' -Tag CI {
-    BeforeEach { Set-Location $testRoot }
 
     It 'Archives exist for all projects' {
         Get-ChildItem -Path './dev_build' -Directory |
@@ -30,7 +17,9 @@ Describe 'Artifact Validation' -Tag CI {
             try {
               & 7z x $_.FullName "-o$($temp.FullName)" -y | Out-Null
               (Get-ChildItem -Path $temp -Filter '*sums.txt').Count | Should -Be 3
-            } finally { Remove-Item $temp -Recurse -Force }
+            } finally {
+              Remove-Item $temp -Recurse -Force
+            }
           }
     }
 
@@ -49,7 +38,9 @@ Describe 'Artifact Validation' -Tag CI {
                     Should -Be $hash
                 }
               }
-            } finally { Remove-Item $temp -Recurse -Force }
+            } finally {
+              Remove-Item $temp -Recurse -Force
+            }
           }
     }
 
@@ -65,4 +56,5 @@ Describe 'Artifact Validation' -Tag CI {
             }
           }
     }
+
 }
