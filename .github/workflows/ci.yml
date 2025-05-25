@@ -1,8 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [ main ]
+  push:      { branches: [ main ] }
   pull_request:
     branches: [ main ]
 
@@ -31,6 +30,7 @@ jobs:
 
       - name: Install PowerShell on Windows
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
           choco install powershell-core --version=7.4.5 -y --force
           pwsh -v
@@ -39,13 +39,15 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y p7zip-full
-          7z --version
+          7z --help
 
       - name: Install 7-Zip on Windows
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          choco install 7zip.install --version=23.1 -y
-          7z | Select-String "Version"
+          choco install 7zip -y --force
+          refreshenv
+          7z | Select-String "7-Zip"
 
       - name: Install Pester
         shell: pwsh
@@ -56,21 +58,15 @@ jobs:
       - name: Build and test
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
+          $ErrorActionPreference = 'Stop'
+          ./Create-Artifacts.ps1 -RootDir './dev_build'
 
-          ./Create-Artifacts.ps1 -RootDir ./dev_build
-
-          $scriptPath = Join-Path $env:GITHUB_WORKSPACE 'tests/Artifacts.Tests.ps1'
-          if (-Not (Test-Path $scriptPath)) {
-            Write-Error "Test script not found: $scriptPath"
-            exit 1
-          }
-
+          # Запускаем Pester с подробным выводом
           $config = New-PesterConfiguration
-          $config.Run.Path = $scriptPath
-          $config.Output.Verbosity = 'Detailed'
+          $config.Run.Path = (Join-Path $env:GITHUB_WORKSPACE 'tests/Artifacts.Tests.ps1')
+          $config.Output.Verbosity   = 'Detailed'
           $config.TestResult.Enabled = $true
-          $config.TestResult.OutputPath = 'test-results.xml'
+          $config.TestResult.OutputPath   = 'test-results.xml'
           $config.TestResult.OutputFormat = 'NUnitXml'
 
-          Invoke-Pester -Configuration $config
+          Invoke-Pester -Configuration $config -PassThru -Verbose
