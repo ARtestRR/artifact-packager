@@ -61,7 +61,6 @@ jobs:
           $ErrorActionPreference = 'Stop'
           ./Create-Artifacts.ps1 -RootDir './dev_build'
 
-          # Запускаем Pester с подробным выводом
           $config = New-PesterConfiguration
           $config.Run.Path = (Join-Path $env:GITHUB_WORKSPACE 'tests/Artifacts.Tests.ps1')
           $config.Output.Verbosity   = 'Detailed'
@@ -69,4 +68,4 @@ jobs:
           $config.TestResult.OutputPath   = 'test-results.xml'
           $config.TestResult.OutputFormat = 'NUnitXml'
 
-          Invoke-Pester -Configuration $config -PassThru -Verbose
+          Invoke-Pester -Configuration $config -Verbose
