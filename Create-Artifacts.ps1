@@ -7,12 +7,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Получение абсолютного пути к скрипту
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$RootDirFull = Join-Path $ScriptDir $RootDir -Replace '\\', '/'
+
+# Корректное формирование полного пути
+$RootDirFull = Join-Path $ScriptDir $RootDir
+$RootDirFull = $RootDirFull -replace '\\', '/'
 
 try {
     $RootDirFull = Resolve-Path -Path $RootDirFull -ErrorAction Stop | Select-Object -ExpandProperty Path
-    $RootDirFull = $RootDirFull -Replace '\\', '/'
+    $RootDirFull = $RootDirFull -replace '\\', '/'
 } catch {
     throw "Не удалось разрешить путь: '$RootDirFull'. Причина: $_"
 }
@@ -21,8 +25,9 @@ if (-not (Test-Path $RootDirFull -PathType Container)) {
     throw "Директория '$RootDirFull' не существует!"
 }
 
-$sevenZipCmd = (Get-Command '7z' -ErrorAction SilentlyContinue)?.Source ?? 
-              (Get-Command '7za' -ErrorAction SilentlyContinue)?.Source
+# Поиск исполняемого файла 7z или 7za
+$sevenZipCmd = (Get-Command '7z' -ErrorAction SilentlyContinue)?.Source ??
+               (Get-Command '7za' -ErrorAction SilentlyContinue)?.Source
 
 if (-not $sevenZipCmd) {
     throw '7-Zip не найден. Установите p7zip-full (Linux) или 7-Zip (Windows)'
@@ -30,35 +35,37 @@ if (-not $sevenZipCmd) {
 
 $hashAlgos = @('MD5', 'SHA1', 'SHA256')
 
-# Явное преобразование путей для Linux
-$projects = Get-ChildItem -LiteralPath $RootDirFull -Directory | 
+# Поиск нужных проектов
+$projects = Get-ChildItem -LiteralPath $RootDirFull -Directory |
             Where-Object { $_.Name -match '^(grpedit|modservice|rsysconf|scada)$' }
 
 if (-not $projects) {
     throw "Не найдены проекты в $RootDirFull"
 }
 
-$projects | ForEach-Object {
-    $proj = $_
+foreach ($proj in $projects) {
     $name = $proj.Name
-    $archive = Join-Path $proj.FullName "${name}_artifacts.7z" -Replace '\\', '/'
-    $tempDir = Join-Path $env:TEMP "${name}_temp_$(Get-Random)" -Replace '\\', '/'
+    $archive = Join-Path $proj.FullName "${name}_artifacts.7z"
+    $archive = $archive -replace '\\', '/'
+
+    $tempDir = Join-Path $env:TEMP "${name}_temp_$(Get-Random)"
+    $tempDir = $tempDir -replace '\\', '/'
 
     try {
         New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
-        
-        # Копирование только нужных файлов (исключая .gitkeep)
+
+        # Копирование файлов, кроме .gitkeep
         Get-ChildItem -Path $proj.FullName -Exclude '.gitkeep' | 
-        Copy-Item -Destination $tempDir -Recurse -Force
+            Copy-Item -Destination $tempDir -Recurse -Force
 
         foreach ($algo in $hashAlgos) {
             $sumFile = Join-Path $tempDir ("{0}sums.txt" -f $algo.ToLower())
             Get-ChildItem -Path $tempDir -Recurse -File -Exclude '*sums.txt' | 
-            ForEach-Object {
-                $hash = (Get-FileHash $_.FullName -Algorithm $algo).Hash
-                $relPath = $_.FullName.Substring($tempDir.Length + 1).Replace('\', '/')
-                "$hash  $relPath" | Add-Content -Path $sumFile -Encoding utf8
-            }
+                ForEach-Object {
+                    $hash = (Get-FileHash $_.FullName -Algorithm $algo).Hash
+                    $relPath = $_.FullName.Substring($tempDir.Length + 1).Replace('\', '/')
+                    "$hash  $relPath" | Add-Content -Path $sumFile -Encoding utf8
+                }
         }
 
         & $sevenZipCmd a -t7z $archive (Join-Path $tempDir '*') -mx9 | Out-Null
