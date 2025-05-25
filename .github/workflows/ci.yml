@@ -63,9 +63,9 @@ jobs:
 
           $config = New-PesterConfiguration
           $config.Run.Path = (Join-Path $env:GITHUB_WORKSPACE 'tests/Artifacts.Tests.ps1')
-          $config.Output.Verbosity   = 'Detailed'
+          $config.Output.Verbosity = 'Detailed'
           $config.TestResult.Enabled = $true
-          $config.TestResult.OutputPath   = 'test-results.xml'
+          $config.TestResult.OutputPath = 'test-results.xml'
           $config.TestResult.OutputFormat = 'NUnitXml'
-
-          Invoke-Pester -Configuration $config -PassThru -Verbose
+          $config.Run.PassThru = $true 
+          Invoke-Pester -Configuration $config
