@@ -48,19 +48,21 @@ foreach ($proj in $projects) {
     $archive = Join-Path $proj.FullName "${name}_artifacts.7z"
     $archive = $archive -replace '\\', '/'
 
-    $tempDir = Join-Path $env:TEMP "${name}_temp_$(Get-Random)"
+    # Получение платформонезависимого временного пути
+    $tempBase = [System.IO.Path]::GetTempPath()
+    $tempDir = Join-Path $tempBase "${name}_temp_$(Get-Random)"
     $tempDir = $tempDir -replace '\\', '/'
 
     try {
         New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
 
         # Копирование файлов, кроме .gitkeep
-        Get-ChildItem -Path $proj.FullName -Exclude '.gitkeep' | 
+        Get-ChildItem -Path $proj.FullName -Exclude '.gitkeep' |
             Copy-Item -Destination $tempDir -Recurse -Force
 
         foreach ($algo in $hashAlgos) {
             $sumFile = Join-Path $tempDir ("{0}sums.txt" -f $algo.ToLower())
-            Get-ChildItem -Path $tempDir -Recurse -File -Exclude '*sums.txt' | 
+            Get-ChildItem -Path $tempDir -Recurse -File -Exclude '*sums.txt' |
                 ForEach-Object {
                     $hash = (Get-FileHash $_.FullName -Algorithm $algo).Hash
                     $relPath = $_.FullName.Substring($tempDir.Length + 1).Replace('\', '/')
