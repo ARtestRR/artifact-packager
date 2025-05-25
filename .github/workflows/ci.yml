@@ -60,8 +60,14 @@ jobs:
 
           ./Create-Artifacts.ps1 -RootDir ./dev_build
 
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE 'tests/Artifacts.Tests.ps1'
+          if (-Not (Test-Path $scriptPath)) {
+            Write-Error "Test script not found: $scriptPath"
+            exit 1
+          }
+
           $config = New-PesterConfiguration
-          $config.Run.Path = './tests/Artifacts.Tests.ps1'
+          $config.Run.Path = $scriptPath
           $config.Output.Verbosity = 'Detailed'
           $config.TestResult.Enabled = $true
           $config.TestResult.OutputPath = 'test-results.xml'
