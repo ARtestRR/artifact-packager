@@ -60,7 +60,11 @@ jobs:
 
           ./Create-Artifacts.ps1 -RootDir ./dev_build
 
-          $testResults = Join-Path $env:GITHUB_WORKSPACE "test-results.xml"
-          Invoke-Pester ./tests/Artifacts.Tests.ps1 -OutputFile $testResults -OutputFormat NUnitXml
+          $config = New-PesterConfiguration
+          $config.Run.Path = './tests/Artifacts.Tests.ps1'
+          $config.Output.Verbosity = 'Detailed'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = 'test-results.xml'
+          $config.TestResult.OutputFormat = 'NUnitXml'
 
-          Write-Warning "Pester Tests Completed"
+          Invoke-Pester -Configuration $config
