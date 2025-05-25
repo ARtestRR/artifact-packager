@@ -15,41 +15,52 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install PowerShell (Linux)
+      - name: Install PowerShell on Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https
-          wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
+          sudo apt-get install -y wget apt-transport-https software-properties-common
+          wget -q "https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb"
           sudo dpkg -i packages-microsoft-prod.deb
           sudo apt-get update
           sudo apt-get install -y powershell
+          pwsh -v
 
-      - name: Install PowerShell (Windows)
+      - name: Install PowerShell on Windows
         if: matrix.os == 'windows-latest'
         run: |
-          choco install powershell --version=7.4.1 -y  # Обновлено до актуальной версии
-          refreshenv
+          choco install powershell-core --version=7.4.5 -y --force
+          pwsh -v
 
-      - name: Install 7-Zip (Linux)
+      - name: Install 7-Zip on Linux
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install -y p7zip-full
+        run: |
+          sudo apt-get install -y p7zip-full
+          7z --version
 
-      - name: Install 7-Zip (Windows)
+      - name: Install 7-Zip on Windows
         if: matrix.os == 'windows-latest'
-        run: choco install 7zip.install --version=23.1 -y
+        run: |
+          choco install 7zip.install --version=23.1 -y
+          7z | Select-String "Version"
 
       - name: Install Pester
         shell: pwsh
         run: |
-          Install-Module Pester -Force -SkipPublisherCheck -Scope CurrentUser  # Добавлен Scope
-          Import-Module Pester -PassThru
+          Install-Module -Name Pester -Force -Scope CurrentUser -AllowClobber -SkipPublisherCheck
+          Import-Module Pester -PassThru | Select-Object Name, Version
 
-      - name: Run tests
+      - name: Build and test
         shell: pwsh
         run: |
-          ./Create-Artifacts.ps1
-          Invoke-Pester ./tests/Artifacts.Tests.ps1 -OutputFile TestResults.xml -OutputFormat NUnitXml
+          $ErrorActionPreference = "Stop"
+
+          ./Create-Artifacts.ps1 -RootDir ./dev_build
+
+          $testResults = Join-Path $env:GITHUB_WORKSPACE "test-results.xml"
+          Invoke-Pester ./tests/Artifacts.Tests.ps1 -OutputFile $testResults -OutputFormat NUnitXml
+
+          Write-Warning "Pester Tests Completed"
