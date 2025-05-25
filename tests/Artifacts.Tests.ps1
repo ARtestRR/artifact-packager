@@ -1,5 +1,3 @@
-# tests/Artifacts.Tests.ps1
-
 Describe 'Artifact Validation' -Tag CI {
 
     It 'Archives exist for all projects' {
