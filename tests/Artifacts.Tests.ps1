@@ -1,7 +1,8 @@
 # tests/Artifacts.Tests.ps1
 
 BeforeAll {
-    $scriptDir = $PSScriptRoot
+    # Определяем директорию тестового скрипта
+    $scriptDir = Split-Path -LiteralPath $MyInvocation.MyCommand.Path -Parent
     $repoRoot  = Resolve-Path (Join-Path $scriptDir '..')
     $testRoot  = Join-Path $env:TEMP "pester_$(Get-Random)"
     
