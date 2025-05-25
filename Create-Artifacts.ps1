@@ -2,80 +2,57 @@
 #Requires -Version 7.0
 
 param(
-    [string] $RootDir = './dev_build'
+    [string]$RootDir = './dev_build'
 )
 
 $ErrorActionPreference = 'Stop'
 
-# Получение абсолютного пути к скрипту
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ScriptDir = $PSScriptRoot
+$RootDirFull = Join-Path $ScriptDir $RootDir -Resolve
 
-# Корректное формирование полного пути
-$RootDirFull = Join-Path $ScriptDir $RootDir
-$RootDirFull = $RootDirFull -replace '\\', '/'
-
-try {
-    $RootDirFull = Resolve-Path -Path $RootDirFull -ErrorAction Stop | Select-Object -ExpandProperty Path
-    $RootDirFull = $RootDirFull -replace '\\', '/'
-} catch {
-    throw "Не удалось разрешить путь: '$RootDirFull'. Причина: $_"
-}
-
-if (-not (Test-Path $RootDirFull -PathType Container)) {
-    throw "Директория '$RootDirFull' не существует!"
-}
-
-# Поиск исполняемого файла 7z или 7za
-$sevenZipCmd = (Get-Command '7z' -ErrorAction SilentlyContinue)?.Source ??
-               (Get-Command '7za' -ErrorAction SilentlyContinue)?.Source
-
-if (-not $sevenZipCmd) {
-    throw '7-Zip не найден. Установите p7zip-full (Linux) или 7-Zip (Windows)'
+# Проверка 7-Zip
+$sevenZipCmd = if ($IsWindows) { '7z.exe' } else { '7z' }
+if (-not (Get-Command $sevenZipCmd -ErrorAction SilentlyContinue)) {
+    throw "7-Zip not found! Install p7zip-full (Linux) or 7-Zip (Windows)"
 }
 
 $hashAlgos = @('MD5', 'SHA1', 'SHA256')
+$excludePatterns = @('.gitkeep', 'distr.deb', 'syms.7z', 'tests')
 
-# Поиск нужных проектов
-$projects = Get-ChildItem -LiteralPath $RootDirFull -Directory |
-            Where-Object { $_.Name -match '^(grpedit|modservice|rsysconf|scada)$' }
-
-if (-not $projects) {
-    throw "Не найдены проекты в $RootDirFull"
-}
-
-foreach ($proj in $projects) {
-    $name = $proj.Name
-    $archive = Join-Path $proj.FullName "${name}_artifacts.7z"
-    $archive = $archive -replace '\\', '/'
-
-    # Получение платформонезависимого временного пути
-    $tempBase = [System.IO.Path]::GetTempPath()
-    $tempDir = Join-Path $tempBase "${name}_temp_$(Get-Random)"
-    $tempDir = $tempDir -replace '\\', '/'
-
+Get-ChildItem -Path $RootDirFull -Directory | Where-Object {
+    $_.Name -match '^(grpedit|modservice|rsysconf|scada)$'
+} | ForEach-Object {
+    $proj = $_
+    $archivePath = Join-Path $proj.FullName "$($proj.Name)_artifacts.7z"
+    
+    $tempDir = New-Item -ItemType Directory -Path ([System.IO.Path]::GetTempPath()) -Name "artifacts_$(Get-Random)"
     try {
-        New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
-
-        # Копирование файлов, кроме .gitkeep
-        Get-ChildItem -Path $proj.FullName -Exclude '.gitkeep' |
+        # Копирование только нужных файлов
+        Get-ChildItem -Path $proj.FullName -Exclude $excludePatterns |
             Copy-Item -Destination $tempDir -Recurse -Force
 
-        foreach ($algo in $hashAlgos) {
-            $sumFile = Join-Path $tempDir ("{0}sums.txt" -f $algo.ToLower())
+        # Создание хеш-файлов
+        $hashAlgos | ForEach-Object {
+            $algo = $_
+            $sumFile = Join-Path $tempDir "$($algo.ToLower())sums.txt"
+            
             Get-ChildItem -Path $tempDir -Recurse -File -Exclude '*sums.txt' |
                 ForEach-Object {
+                    $relPath = $_.FullName.Substring($tempDir.FullName.Length + 1)
                     $hash = (Get-FileHash $_.FullName -Algorithm $algo).Hash
-                    $relPath = $_.FullName.Substring($tempDir.Length + 1).Replace('\', '/')
-                    "$hash  $relPath" | Add-Content -Path $sumFile -Encoding utf8
+                    "${hash}  ${relPath}" | Add-Content -Path $sumFile -Encoding utf8
                 }
         }
 
-        & $sevenZipCmd a -t7z $archive (Join-Path $tempDir '*') -mx9 | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "Ошибка архивации $name" }
+        # Архивирование
+        & $sevenZipCmd a -t7z $archivePath "$(Join-Path $tempDir '*')" -mx9 -r
+        if ($LASTEXITCODE -ne 0) { throw "Archive failed for $($proj.Name)" }
 
-        foreach ($algo in $hashAlgos) {
-            $hash = (Get-FileHash $archive -Algorithm $algo).Hash
-            "$hash  $(Split-Path $archive -Leaf)" | Set-Content -Path "$archive.$($algo.ToLower())" -Encoding utf8
+        # Создание внешних хешей
+        $hashAlgos | ForEach-Object {
+            $algo = $_
+            $hash = (Get-FileHash -Path $archivePath -Algorithm $algo).Hash
+            "${hash}  $($proj.Name)_artifacts.7z" | Set-Content -Path "$archivePath.$($algo.ToLower())" -Encoding utf8
         }
     }
     finally {
@@ -83,4 +60,4 @@ foreach ($proj in $projects) {
     }
 }
 
-Write-Host "[SUCCESS] Все артефакты успешно созданы!"
+Write-Host "[SUCCESS] All artifacts created successfully!"

@@ -1,7 +1,8 @@
 name: CI
 
 on:
-  push:      { branches: [ main ] }
+  push: 
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -49,23 +50,42 @@ jobs:
           refreshenv
           7z | Select-String "7-Zip"
 
+      - name: Validate 7z installation
+        shell: bash
+        run: |
+          7z | grep "7-Zip"
+          if [ $? -ne 0 ]; then
+            echo "::error::7-Zip not installed correctly!"
+            exit 1
+          fi
+
       - name: Install Pester
         shell: pwsh
         run: |
-          Install-Module -Name Pester -Force -Scope CurrentUser -AllowClobber -SkipPublisherCheck
-          Import-Module Pester -PassThru | Select-Object Name, Version
+          Install-Module -Name Pester -Force -Scope CurrentUser -SkipPublisherCheck
+          Import-Module Pester -PassThru
 
-      - name: Build and test
+      - name: Build artifacts
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           ./Create-Artifacts.ps1 -RootDir './dev_build'
+          Get-ChildItem ./dev_build -Recurse -Filter *.7z* | Format-Table FullName
 
+      - name: Run tests
+        shell: pwsh
+        run: |
           $config = New-PesterConfiguration
           $config.Run.Path = (Join-Path $env:GITHUB_WORKSPACE 'tests/Artifacts.Tests.ps1')
           $config.Output.Verbosity = 'Detailed'
           $config.TestResult.Enabled = $true
           $config.TestResult.OutputPath = 'test-results.xml'
           $config.TestResult.OutputFormat = 'NUnitXml'
-          $config.Run.PassThru = $true 
+          $config.Run.PassThru = $true
           Invoke-Pester -Configuration $config
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: test-results.xml
