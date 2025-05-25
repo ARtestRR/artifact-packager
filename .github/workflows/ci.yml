@@ -18,26 +18,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install PowerShell
+      - name: Install PowerShell (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          if [ "${{ runner.os }}" == "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y wget apt-transport-https
-            wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
-            sudo dpkg -i packages-microsoft-prod.deb
-            sudo apt-get update
-            sudo apt-get install -y powershell
-          else
-            choco install powershell --version=7.4.0 -y
-          }
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https
+          wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
 
-      - name: Install 7-Zip
+      - name: Install PowerShell (Windows)
+        if: matrix.os == 'windows-latest'
         run: |
-          if [ "${{ runner.os }}" == "Linux" ]; then
-            sudo apt-get install -y p7zip-full
-          else
-            choco install 7zip.install --version=23.1 -y
-          }
+          choco install powershell --version=7.4.0 -y
+
+      - name: Install 7-Zip (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y p7zip-full
+
+      - name: Install 7-Zip (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install 7zip.install --version=23.1 -y
 
       - name: Install Pester
         shell: pwsh
