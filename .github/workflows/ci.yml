@@ -31,7 +31,8 @@ jobs:
       - name: Install PowerShell (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          choco install powershell --version=7.4.0 -y
+          choco install powershell --version=7.4.1 -y  # Обновлено до актуальной версии
+          refreshenv
 
       - name: Install 7-Zip (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -44,7 +45,7 @@ jobs:
       - name: Install Pester
         shell: pwsh
         run: |
-          Install-Module Pester -Force -SkipPublisherCheck
+          Install-Module Pester -Force -SkipPublisherCheck -Scope CurrentUser  # Добавлен Scope
           Import-Module Pester -PassThru
 
       - name: Run tests
